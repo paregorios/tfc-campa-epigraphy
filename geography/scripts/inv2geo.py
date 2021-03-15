@@ -6,8 +6,9 @@ Convert Campā inventory to geodata
 
 from airtight.cli import configure_commandline
 from encoded_csv import get_csv
+import inspect
 import logging
-from pprint import pprint
+from pprint import pformat, pprint
 import pycountry
 import sys
 from textnorm import normalize_space, normalize_unicode
@@ -31,153 +32,196 @@ POSITIONAL_ARGUMENTS = [
 ]
 
 
-class CampaPlace(object):
-
-    def __init__():
-        pass
-
-
-
 def norm(raw):
     return normalize_unicode(normalize_space(raw))
 
 
-def register(data, geod, index):
-    register_country(data, geod, index)
-    register_province(data, geod, index)
+class CatalogIndex(object):
 
+    def __init__(self, title):
+        self.title = title
+        self.index = {}
+        self.reverse_index = {}
 
-def register_country(data, geod, index):
-    if data['country'] == '':
-        logger.warning(
-            (
-                'IGNORED: No country for Campā Inscription Number {}'
-                ''.format(data['cnumber'])))
-        return
-    term = data['country']
-    country_id = get_country(term, index)
-    try:
-        geod[country_id]
-    except KeyError:
-        geod[country_id] = {
-            'name': term,
-            'id': country_id
-        }
-    indexit(term, country_id, index)
-
-
-def get_country(raw_term, index):
-    term = raw_term
-    try:
-        country_id = index[term]
-    except KeyError:
-        if term == 'Cambodge':
-            term = 'Cambodia'
-        elif term == 'Laos':
-            term = "Lao People's Democratic Republic"
-        these_countries = pycountry.countries.search_fuzzy(term)
-        if len(these_countries) != 1:
-            raise RuntimeError((raw_term, these_countries))
-        country_id = these_countries[0].alpha_2
-    return country_id
-
-
-def handle_kompong_siem(term, geod, index):
-    # https://en.wikipedia.org/wiki/Kampong_Siem_District
-    province_id = 'KH-3'
-    district_id = '{}:{}'.format(
-        province_id, '-'.join(term.lower().split()))
-    try:
-        geod[province_id]
-    except KeyError:
-        geod[province_id] = {
-            'name': 'Kampong Cham',
-            'id': province_id,
-            'country': 'KH',
-            'types': ['province', 'ADM1', 'khaet']
-        }
-    indexit('Kampong Cham', province_id, index)
-    try:
-        geod[district_id]
-    except KeyError:
-        geod[district_id] = {
-            'name': 'Kompong Siem',
-            'id': district_id,
-            'country': 'KH',
-            'types': ['district', 'ADM2', 'srok']
-        }
-    indexit(term, district_id, index)
-
-
-def get_province(data, geod, index):
-    term = data['province']
-    try:
-        province_id = index[term]
-    except KeyError:
-        country_id = get_country(data['country'], index)
+    def set_term(self, term, targets):
+        if isinstance(targets, str):
+            target_list = [targets]
+        elif isinstance(targets, list):
+            target_list = targets
+        else:
+            raise TypeError(
+                'targets is {} expected "list" or "str"'.format(type(targets)))
+        nterm = self._norm_term(term)
         try:
-            province = pycountry.subdivisions.lookup(term)
-        except LookupError:
-            shred = '_'.join(term.lower().split())
+            self.index[nterm]
+        except KeyError:
+            self.index[nterm] = target_list
+        else:
+            self.index.extend(target_list)
+        self.index = list(set(self.index))
+        for t in target_list:
+            nt = self._norm_term(t)
             try:
-                logger.debug('boop')
-                province = getattr(
-                    sys.modules[__name__],
-                    'handle_{}'.format(shred))(
-                        term, geod, index
-                    )
+                self.reverse_index[nt]
+            except KeyError:
+                self.reverse_index[nt] = []
+            if term not in self.reverse_index[nt]:
+                self.reverse_index.append(term)
+
+    def lookup(self, term):
+        return self.index[self._norm_term(term)]
+
+    def lookup_reverse(self, target):
+        return self.reverse_index[self._norm_term(target)]
+
+    def _norm_term(self, raw):
+        cooked = norm(raw)
+        return '-'.join(cooked.lower().split())
+
+
+class PlaceIndexByName(CatalogIndex):
+
+    def __init__(self):
+        super().__init__('PlaceIndexByName')
+
+    def index(self, place):
+        for name in place.names:
+            self.set_term(name, place.pid)
+
+
+class CampaPlace(object):
+
+    def __init__(self, pid, **kwargs):
+        self.pid = pid
+        for k, v in kwargs.items():
+            kfn = '_'.join(k.lower().split())
+            getattr(self, 'set_{}'.format(kfn))(v)
+
+    def set_alpha_2(self, value):
+        self.iso_3166_1_alpha_2 = value
+
+    def set_alpha_3(self, value):
+        self.iso_3166_1_alpha3 = value
+
+    def set_numeric(self, value):
+        self.iso_3166_1_numeric = value
+
+    def set_common_name(self, value):
+        self.set_name(value)
+
+    def set_official_name(self, value):
+        self.set_name(value)
+
+    def set_name(self, value):
+        try:
+            self.names
+        except AttributeError:
+            self.names = []
+        if value not in self.names:
+            self.names.append(value)
+
+    def set_type(self, value):
+        try:
+            self.types
+        except AttributeError:
+            self.types = []
+        if value not in self.types:
+            self.types.append(value)
+
+    def set_types(self, values):
+        if isinstance(values, str):
+            self.set_type(values)
+        else:
+            try:
+                self.types
             except AttributeError:
-                raise RuntimeError('no handler')
-        
-            raise LookupError(
-                (
-                    'Failed lookup on "{}" in {} among {}'
-                    ''.format(
-                        term, data['country'],
-                        [
-                            s.name for s in pycountry.subdivisions.get(
-                                country_code=country_id)]))
-            )
-        if province.country_code != country_id:
-            raise RuntimeError((term, province))
-    else:
-        province = pycountry.subdivisions.get(code=province_id)
-    return province
+                self.types = []
+            for value in values:
+                if value not in self.types:
+                    self.types.append(value)
 
-        
-def register_province(data, geod, index):
-    if data['province'] == '':
-        logger.warning(
-            (
-                'IGNORED: No province for Campā Inscription Number {}'
-                ''.format(data['cnumber'])))
-        return   
-    term = data['province']
-    province = get_province(data, geod, index)
-    province_id = province.code
-    try:
-        geod[province_id]
-    except KeyError:
-        geod[province_id] = {
-            'name': term,
-            'id': province_id,
-            'country': province.country_code,
-            'types': [province.type.lower(), 'ADM1', 'khaet']
+
+class Gazetteer(object):
+
+    def __init__(self):
+        self.places = {}
+        self.catalog = {
+            'names2pids': PlaceIndexByName()
         }
-    indexit(term, province_id, index)
-    
-    
-    
 
-def indexit(term, target, index):
-    try:
-        index[term]
-    except KeyError:
-        index[term] = target
-    else:
-        if target != index[term]:
-            raise RuntimeError((term, target, index[term]))
+    def set_place(self, place, overwrite=False):
+        try:
+            self.places[place.pid]
+        except KeyError:
+            self.places[place.pid] = place
+        else:
+            if overwrite:
+                logger.warning(
+                    'Overwriting {}'.format(place.pid)
+                )
+                self.places[place.pid] = place
+            else:
+                logger.info(
+                    'Place {} already exists; not overwriting.'
+                    ''.format(place.pid)
+                )
+            return
+        self.catalog['names2pids'].index(place)
 
+    def lookup(self, term):
+        try:
+            hit = self.places[term]
+        except KeyError:
+            try:
+                hit = self.places[self.catalog['names2pids'].lookup(term)]
+            except KeyError:
+                hit = None
+        if hit is None:
+            raise LookupError('Could not find {}'.format(term))
+        else:
+            return hit
+
+
+class PlaceParser(object):
+
+    def __init__(self):
+        self.cache = {}
+
+    def parse(self, **kwargs):
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name,
+            '\nkwargs'))
+        logger = logging.getLogger(logger_name)
+        logger.debug('\n' + pformat(kwargs, indent=4))
+        for k, v in kwargs.items():
+            getattr(self, '_parse_{}'.format(k))(**kwargs)
+
+    def _parse_cnumber(self, **kwargs):
+        pass
+
+    def _parse_country(self, **kwargs):
+
+        country_name = kwargs['country']
+        if country_name == '':
+            logger.warning(
+                'IGNORED: No country for Campā Inscription Number {}'
+                ''.format(kwargs['cnumber']))
+            return
+        try:
+            country = self.cache[country_name]
+        except KeyError:
+            country = pycountry.countries.lookup(country_name)
+            logger_name = ':'.join((
+                self.__class__.__name__,
+                inspect.currentframe().f_code.co_name,
+                '\nCountry'))
+            logger = logging.getLogger(logger_name)
+            logger.debug('\n' + pformat(country.__dict__['_fields'], indent=4))
+        p = CampaPlace(
+            pid=country.alpha_2, 
+            types=['country'],
+            **country.__dict__['_fields'])
 
 
 def main(**kwargs):
@@ -188,8 +232,8 @@ def main(**kwargs):
     data = get_csv(kwargs['infile'])
     logger.info(data['fieldnames'])
     logger.info('Rows in file: {}'.format(len(data['content'])))
-    geod = {}
-    index = {}
+    g = Gazetteer()
+    p = PlaceParser()
     for row in data['content']:
         # country -> province -> district -> commune -> village -> position
         clean_data = {
@@ -201,9 +245,7 @@ def main(**kwargs):
             'village': norm(row['Village  (Thôn)']),
             'position': norm(row['Position'])
         }
-        register(clean_data, geod, index)
-    pprint(geod, indent=4)
-    pprint(index, indent=4)
+        p.parse(**clean_data)
             
 
 if __name__ == "__main__":
