@@ -98,16 +98,48 @@ class CampaPlace(object):
             getattr(self, 'set_{}'.format(kfn))(v)
 
     def set_alpha_2(self, value):
-        self.iso_3166_1_alpha_2 = value
+        self._set_identifier('ISO 3166-1', 'alpha-2', value)
 
     def set_alpha_3(self, value):
-        self.iso_3166_1_alpha3 = value
+        self._set_identifier('ISO 3166-1', 'alpha-3', value)
+
+    def set_code(self, value):
+        self._set_identifier('ISO 3166-2', value)
+
+    def _set_identifier(self, *values):
+        try:
+            self.identifiers
+        except AttributeError:
+            self.identifiers = {}
+        d = self.identifiers
+        prev = d
+        for i, value in enumerate(values):
+            if len(values) == 1:
+                raise ValueError(values)
+            elif i == len(values) - 1:
+                prev.append(value)
+            elif i == len(values) - 2:
+                try:
+                    prev[value]
+                except KeyError:
+                    prev[value] = []
+                prev = prev[value]
+            else:
+                try:
+                    prev[value]
+                except KeyError:
+                    prev[value] = {}
+                prev = prev[value]
 
     def set_numeric(self, value):
-        self.iso_3166_1_numeric = value
+        self._set_identifier('ISO 3166-1', 'numeric', value)        
 
     def set_common_name(self, value):
         self.set_name(value)
+
+    def set_country_code(self, value):
+        if value is not None:
+            self.country_code = value
 
     def set_official_name(self, value):
         self.set_name(value)
@@ -120,12 +152,20 @@ class CampaPlace(object):
         if value not in self.names:
             self.names.append(value)
 
+    def set_parent_code(self, value):
+        if value is None:
+            return
+        raise NotImplementedError('parent_code')
+
+    def set_project_name(self, value):
+        self.set_name(value)
+
     def set_type(self, value):
         try:
             self.types
         except AttributeError:
             self.types = []
-        if value not in self.types:
+        if value not in self.types and value.lower() not in self.types:
             self.types.append(value)
 
     def set_types(self, values):
@@ -137,7 +177,7 @@ class CampaPlace(object):
             except AttributeError:
                 self.types = []
             for value in values:
-                if value not in self.types:
+                if value not in self.types and value.lower() not in self.types:
                     self.types.append(value)
 
 
@@ -205,6 +245,10 @@ class PlaceParser(object):
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
         if country_name == '':
+            logger_name = ':'.join((
+                self.__class__.__name__,
+                inspect.currentframe().f_code.co_name))
+            logger = logging.getLogger(logger_name)
             logger.warning(
                 'IGNORED: No country for Campā Inscription Number {}'
                 ''.format(kwargs['cnumber']))
@@ -219,11 +263,50 @@ class PlaceParser(object):
                 '\nCountry'))
             logger = logging.getLogger(logger_name)
             logger.debug('\n' + pformat(country.__dict__['_fields'], indent=4))
-        return CampaPlace(
+        p = CampaPlace(
             pid=country.alpha_2, 
-            types=['country'],
+            types=['country', 'ADM1'],
+            project_name=country_name,
             **country.__dict__['_fields'])
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name,
+            '\n{}'.format(p.__class__.__name__)))
+        logger = logging.getLogger(logger_name)
+        logger.debug('\n' + pformat(p.__dict__, indent=4))
 
+    def _parse_province(self, **kwargs):
+        province_name = kwargs['province']
+        if province_name == '':
+            logger_name = ':'.join((
+                self.__class__.__name__,
+                inspect.currentframe().f_code.co_name))
+            logger = logging.getLogger(logger_name)
+            logger.warning(
+                'IGNORED: No province for Campā Inscription Number {}'
+                ''.format(kwargs['cnumber']))
+            return
+        try:
+            province = self.cache[province_name]
+        except KeyError:
+            province = pycountry.subdivisions.lookup(province_name)
+            logger_name = ':'.join((
+                self.__class__.__name__,
+                inspect.currentframe().f_code.co_name,
+                '\nProvince'))
+            logger = logging.getLogger(logger_name)
+            logger.debug('\n' + pformat(province.__dict__['_fields'], indent=4))
+        p = CampaPlace(
+            pid=province.code,
+            types=['province', 'tỉnh', 'ADM2'],
+            project_name=province_name,
+            **province.__dict__['_fields'])
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name,
+            '\n{}'.format(p.__class__.__name__)))
+        logger = logging.getLogger(logger_name)
+        logger.debug('\n' + pformat(p.__dict__, indent=4))
 
 def main(**kwargs):
     """
