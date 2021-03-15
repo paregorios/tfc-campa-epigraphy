@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Python 3 script template (changeme)
+Convert Campā inventory to geodata
 """
 
-import better_exceptions
 from airtight.cli import configure_commandline
 import logging
 
@@ -23,6 +22,7 @@ OPTIONAL_ARGUMENTS = [
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
+    ['infile', str, 'input CSV file']
 ]
 
 
@@ -36,4 +36,4 @@ def main(**kwargs):
 
 if __name__ == "__main__":
     main(**configure_commandline(
-            OPTIONAL_ARGUMENTS, POSITIONAL_ARGUMENTS, DEFAULT_LOG_LEVEL))
+        OPTIONAL_ARGUMENTS, POSITIONAL_ARGUMENTS, DEFAULT_LOG_LEVEL))
