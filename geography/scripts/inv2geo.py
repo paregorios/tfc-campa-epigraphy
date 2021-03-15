@@ -5,7 +5,9 @@ Convert Campā inventory to geodata
 """
 
 from airtight.cli import configure_commandline
+from encoded_csv import get_csv
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +32,11 @@ def main(**kwargs):
     """
     main function
     """
-    # logger = logging.getLogger(sys._getframe().f_code.co_name)
-    pass
-
+    logger = logging.getLogger(sys._getframe().f_code.co_name)
+    data = get_csv(kwargs['infile'])
+    logger.debug(data['fieldnames'])
+    for row in data['content']:
+        pass
 
 if __name__ == "__main__":
     main(**configure_commandline(
