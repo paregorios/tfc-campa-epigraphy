@@ -194,14 +194,15 @@ class PlaceParser(object):
             '\nkwargs'))
         logger = logging.getLogger(logger_name)
         logger.debug('\n' + pformat(kwargs, indent=4))
+        places = []
         for k, v in kwargs.items():
-            getattr(self, '_parse_{}'.format(k))(**kwargs)
+            places.append(getattr(self, '_parse_{}'.format(k))(**kwargs))
+        return places
 
     def _parse_cnumber(self, **kwargs):
         pass
 
     def _parse_country(self, **kwargs):
-
         country_name = kwargs['country']
         if country_name == '':
             logger.warning(
@@ -218,7 +219,7 @@ class PlaceParser(object):
                 '\nCountry'))
             logger = logging.getLogger(logger_name)
             logger.debug('\n' + pformat(country.__dict__['_fields'], indent=4))
-        p = CampaPlace(
+        return CampaPlace(
             pid=country.alpha_2, 
             types=['country'],
             **country.__dict__['_fields'])
@@ -245,7 +246,9 @@ def main(**kwargs):
             'village': norm(row['Village  (Thôn)']),
             'position': norm(row['Position'])
         }
-        p.parse(**clean_data)
+        places = p.parse(**clean_data)
+        for place in places:
+            g.set_place(p)
             
 
 if __name__ == "__main__":
