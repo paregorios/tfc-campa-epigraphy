@@ -7,11 +7,15 @@ Convert Campā inventory to geodata
 from airtight.cli import configure_commandline
 from encoded_csv import get_csv
 import inspect
+import json
 import logging
+from pathlib import Path
 from pprint import pformat, pprint
 import pycountry
 import sys
 from textnorm import normalize_space, normalize_unicode
+from wikidata.client import Client as wdClient
+from wikidata_suggest import suggest
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,7 @@ OPTIONAL_ARGUMENTS = [
         False],
     ['-w', '--veryverbose', False,
         'very verbose output (logging level == DEBUG)', False],
+    ['-d', '--districts', 'districts.json', 'districts info', False]
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
@@ -224,8 +229,19 @@ class Gazetteer(object):
 
 class PlaceParser(object):
 
-    def __init__(self):
+    def __init__(self, districts):
         self.cache = {}
+        self.wd_client = wdClient()
+        with districts.open('r', encoding='utf-8') as f:
+            self.districts = json.load(f)
+        del f
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name))
+        logger = logging.getLogger(logger_name)
+        logger.debug(
+            'read {} districts from {}'
+            ''.format(len(self.districts), districts))
 
     def parse(self, **kwargs):
         logger_name = ':'.join((
@@ -236,6 +252,8 @@ class PlaceParser(object):
         logger.debug('\n' + pformat(kwargs, indent=4))
         places = []
         for k, v in kwargs.items():
+            if k == 'districts':
+                continue
             places.append(getattr(self, '_parse_{}'.format(k))(**kwargs))
         return places
 
@@ -275,6 +293,23 @@ class PlaceParser(object):
         logger = logging.getLogger(logger_name)
         logger.debug('\n' + pformat(p.__dict__, indent=4))
 
+    def _parse_district(self, **kwargs):
+        district_name = kwargs['district']
+        if district_name == '':
+            logger_name = ':'.join((
+                self.__class__.__name__,
+                inspect.currentframe().f_code.co_name))
+            logger = logging.getLogger(logger_name)
+            logger.warning(
+                'IGNORED: No district for Campā Inscription Number {}'
+                ''.format(kwargs['cnumber']))
+            return
+        try:
+            district = self.districts[district_name]
+        except KeyError:
+            wikidata = suggest(district_name)
+            
+
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']
         if province_name == '':
@@ -308,6 +343,7 @@ class PlaceParser(object):
         logger = logging.getLogger(logger_name)
         logger.debug('\n' + pformat(p.__dict__, indent=4))
 
+
 def main(**kwargs):
     """
     main function
@@ -317,7 +353,13 @@ def main(**kwargs):
     logger.info(data['fieldnames'])
     logger.info('Rows in file: {}'.format(len(data['content'])))
     g = Gazetteer()
-    p = PlaceParser()
+    districts = kwargs['districts']
+    if districts == 'districts.json':
+        dpath = Path(__file__).parent.parent / districts
+    else:
+        dpath = Path(districts).expanduser().resolve()
+
+    p = PlaceParser(dpath)
     for row in data['content']:
         # country -> province -> district -> commune -> village -> position
         clean_data = {
