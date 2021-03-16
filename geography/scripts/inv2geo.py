@@ -63,8 +63,8 @@ class CatalogIndex(object):
         except KeyError:
             self.index[nterm] = target_list
         else:
-            self.index.extend(target_list)
-        self.index = list(set(self.index))
+            self.index[nterm].extend(target_list)
+        self.index[nterm] = list(set(self.index[nterm]))
         for t in target_list:
             nt = self._norm_term(t)
             try:
@@ -72,7 +72,8 @@ class CatalogIndex(object):
             except KeyError:
                 self.reverse_index[nt] = []
             if term not in self.reverse_index[nt]:
-                self.reverse_index.append(term)
+                self.reverse_index[nt].append(term)
+            self.reverse_index[nt] = list(set(self.reverse_index[nt]))
 
     def lookup(self, term):
         return self.index[self._norm_term(term)]
@@ -90,7 +91,7 @@ class PlaceIndexByName(CatalogIndex):
     def __init__(self):
         super().__init__('PlaceIndexByName')
 
-    def index(self, place):
+    def add(self, place):
         for name in place.names:
             self.set_term(name, place.pid)
 
@@ -265,7 +266,7 @@ class Gazetteer(object):
                     ''.format(place.pid)
                 )
             return
-        self.catalog['names2pids'].index(place)
+        self.catalog['names2pids'].add(place)
 
     def lookup(self, term):
         try:
@@ -314,7 +315,7 @@ class PlaceParser(object):
         places = []
         for k, v in kwargs.items():
             places.append(getattr(self, '_parse_{}'.format(k))(**kwargs))
-        return places
+        return [p for p in places if p is not None]
 
     def _parse_cnumber(self, **kwargs):
         pass
@@ -347,6 +348,7 @@ class PlaceParser(object):
                 **commune
             )
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        return p
 
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
@@ -365,6 +367,7 @@ class PlaceParser(object):
             project_name=country_name,
             **country.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        return p
 
     def _parse_district(self, **kwargs):
         district_name = kwargs['district']
@@ -394,7 +397,14 @@ class PlaceParser(object):
                 **district
             )
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        return p
             
+    def _parse_position(self, **kwargs):
+        position_name = kwargs['position']
+        if not self._present('position', position_name):
+            return
+        raise NotImplementedError(inspect.currentframe.f_code.co_name)
+        
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']
         logger = self._get_logger()
@@ -413,11 +423,18 @@ class PlaceParser(object):
             project_name=province_name,
             **province.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        return p
 
+    def _parse_village(self, **kwargs):
+        village_name = kwargs['village']
+        if not self._present('village', village_name):
+            return
+        raise NotImplementedError(inspect.currentframe.f_code.co_name)
+        
     def _present(self, field_name, value):
         if value == '':
             logger = self._get_logger()
-            logger.warning('IGNORED: %s (%s)', (field_name, 'empty string'))
+            logger.warning('IGNORED: %s (%s)', field_name, 'empty string')
             return False
         return value
 
@@ -474,7 +491,7 @@ def main(**kwargs):
         }
         places = p.parse(**clean_data)
         for place in places:
-            g.set_place(p)
+            g.set_place(place)
             
 
 if __name__ == "__main__":
