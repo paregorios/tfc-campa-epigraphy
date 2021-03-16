@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from pprint import pformat, pprint
 import pycountry
+import re
 import sys
 from textnorm import normalize_space, normalize_unicode
 from wikidata.client import Client as wdClient
@@ -111,6 +112,11 @@ class CampaPlace(object):
     def set_code(self, value):
         self._set_identifier('ISO 3166-2', value)
 
+    def set_id(self, value):
+        m = re.match(r'^Q\d+$', value)
+        if m is not None:
+            self._set_identifier('wikidata', value)
+
     def _set_identifier(self, *values):
         try:
             self.identifiers
@@ -142,11 +148,27 @@ class CampaPlace(object):
     def set_common_name(self, value):
         self.set_name(value)
 
+    def set_concepturi(self, value):
+        self.set_same_as([value])
+
     def set_country_code(self, value):
         if value is not None:
             self.country_code = value
 
+    def set_description(self, value):
+        if value in ['city']:
+            self.set_type(value)
+        else:
+            raise NotImplementedError(
+                'description: {}'.format(value))
+
+    def set_match(self, value):
+        pass
+
     def set_official_name(self, value):
+        self.set_name(value)
+
+    def set_label(self, value):
         self.set_name(value)
 
     def set_name(self, value):
@@ -157,12 +179,30 @@ class CampaPlace(object):
         if value not in self.names:
             self.names.append(value)
 
+    def set_pageid(self, value):
+        pass
+
     def set_parent_code(self, value):
         if value is None:
             return
         raise NotImplementedError('parent_code')
 
     def set_project_name(self, value):
+        self.set_name(value)
+
+    def set_repository(self, value):
+        pass
+
+    def set_same_as(self, values):
+        try:
+            self.same_as
+        except AttributeError:
+            self.same_as = []
+        for value in values:
+            if value not in self.same_as:
+                self.same_as.append(value)
+
+    def set_title(self, value):
         self.set_name(value)
 
     def set_type(self, value):
@@ -185,6 +225,20 @@ class CampaPlace(object):
                 if value not in self.types and value.lower() not in self.types:
                     self.types.append(value)
 
+    def set_uris(self, values):
+        try:
+            self.uris
+        except AttributeError:
+            self.uris = []
+        for value in values:
+            if value.startswith('//'):
+                value = 'https:' + value
+            if value not in self.uris:
+                self.uris.append(value)
+
+    def set_url(self, value):
+        self.set_uris([value])
+        
 
 class Gazetteer(object):
 
@@ -232,6 +286,7 @@ class PlaceParser(object):
     def __init__(self, districts):
         self.cache = {}
         self.wd_client = wdClient()
+        self.districts_path = str(districts)
         with districts.open('r', encoding='utf-8') as f:
             self.districts = json.load(f)
         del f
@@ -294,22 +349,42 @@ class PlaceParser(object):
         logger.debug('\n' + pformat(p.__dict__, indent=4))
 
     def _parse_district(self, **kwargs):
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name))
+        logger = logging.getLogger(logger_name)
         district_name = kwargs['district']
         if district_name == '':
-            logger_name = ':'.join((
-                self.__class__.__name__,
-                inspect.currentframe().f_code.co_name))
-            logger = logging.getLogger(logger_name)
             logger.warning(
                 'IGNORED: No district for Campā Inscription Number {}'
                 ''.format(kwargs['cnumber']))
             return
+        district = None
         try:
             district = self.districts[district_name]
         except KeyError:
             wikidata = suggest(district_name)
+            logger.debug(pformat(wikidata, indent=4))
+            if wikidata is not None:
+                self.districts[district_name] = wikidata
+                self._save_districts()
+                district = wikidata
+        district_slug = '-'.join(
+            re.sub(r'[()-_]+', '', norm(district_name).lower()).split())
+        if district is not None:
+            p = CampaPlace(
+                pid=district_slug,
+                types=['district', 'ADM3'],
+                project_name=district_name,
+                **district
+            )
+        logger_name = ':'.join((
+            self.__class__.__name__,
+            inspect.currentframe().f_code.co_name,
+            '\n{}'.format(p.__class__.__name__)))
+        logger = logging.getLogger(logger_name)
+        logger.debug('\n' + pformat(p.__dict__, indent=4))
             
-
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']
         if province_name == '':
@@ -343,6 +418,14 @@ class PlaceParser(object):
         logger = logging.getLogger(logger_name)
         logger.debug('\n' + pformat(p.__dict__, indent=4))
 
+    def _save_districts(self):
+        districts = Path(self.districts_path)
+        districts.rename(self.districts_path + '.bak')
+        districts = Path(self.districts_path)
+        with districts.open('w', encoding='utf-8') as fp:
+            json.dump(self.districts, fp, indent=4, ensure_ascii=False)
+        del fp
+        
 
 def main(**kwargs):
     """

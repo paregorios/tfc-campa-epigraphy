@@ -1,1 +1,17 @@
-{}
+{
+    "Biên Hòa (city)": {
+        "id": "Q19316",
+        "title": "Q19316",
+        "pageid": 22453,
+        "repository": "wikidata",
+        "url": "//www.wikidata.org/wiki/Q19316",
+        "concepturi": "http://www.wikidata.org/entity/Q19316",
+        "label": "Biên Hòa",
+        "description": "city",
+        "match": {
+            "type": "label",
+            "language": "en",
+            "text": "Biên Hòa"
+        }
+    }
+}
