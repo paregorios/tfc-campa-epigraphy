@@ -1,1 +1,16 @@
-{}
+{
+    "Hòa Bình (ward)": {
+        "id": "Q10770929",
+        "title": "Q10770929",
+        "pageid": 12044877,
+        "repository": "wikidata",
+        "url": "//www.wikidata.org/wiki/Q10770929",
+        "concepturi": "http://www.wikidata.org/entity/Q10770929",
+        "label": "Hòa Bình",
+        "match": {
+            "type": "label",
+            "language": "en",
+            "text": "Hòa Bình"
+        }
+    }
+}

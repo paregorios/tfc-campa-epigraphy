@@ -327,7 +327,26 @@ class PlaceParser(object):
         try:
             commune = self.communes[commune_name]
         except KeyError:
-            pass
+            print('Attempting to get additional information about "{}"'.format(commune_name))
+            wikidata = suggest(commune_name)
+            logger.debug(pformat(wikidata, indent=4))
+            if wikidata is not None:
+                self.communes[commune_name] = wikidata
+                self._save_communes()
+                commune = wikidata
+        else:
+            logger.debug('using stored wikidata commune information')
+        logger.debug('wikidata:\n%s', pformat(commune, indent=4))
+        commune_slug = '-'.join(
+            re.sub(r'[()-_]+', '', norm(commune_name).lower()).split())
+        if commune is not None:
+            p = CampaPlace(
+                pid=commune_slug,
+                types=['commune', 'ADM4'],
+                project_name=commune_name,
+                **commune
+            )
+        logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
 
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
@@ -401,6 +420,14 @@ class PlaceParser(object):
             logger.warning('IGNORED: %s (%s)', (field_name, 'empty string'))
             return False
         return value
+
+    def _save_communes(self):
+        communes = Path(self.communes_path)
+        communes.rename(self.communes_path + '.bak')
+        communes = Path(self.communes_path)
+        with communes.open('w', encoding='utf-8') as fp:
+            json.dump(self.communes, fp, indent=4, ensure_ascii=False)
+        del fp
 
     def _save_districts(self):
         districts = Path(self.districts_path)
