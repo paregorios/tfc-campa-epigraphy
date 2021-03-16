@@ -9,6 +9,7 @@ from encoded_csv import get_csv
 import inspect
 import json
 import logging
+from logging import debug, info, warning, error, fatal
 from pathlib import Path
 from pprint import pformat, pprint
 import pycountry
@@ -17,8 +18,6 @@ import sys
 from textnorm import normalize_space, normalize_unicode
 from wikidata.client import Client as wdClient
 from wikidata_suggest import suggest
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 OPTIONAL_ARGUMENTS = [
@@ -298,66 +297,55 @@ class PlaceParser(object):
             'read {} districts from {}'
             ''.format(len(self.districts), districts))
 
-    def parse(self, **kwargs):
-        logger_name = ':'.join((
+    def _get_logger(self):
+        name = ':'.join((
             self.__class__.__name__,
-            inspect.currentframe().f_code.co_name,
-            '\nkwargs'))
-        logger = logging.getLogger(logger_name)
-        logger.debug('\n' + pformat(kwargs, indent=4))
+            sys._getframe().f_back.f_code.co_name))
+        return logging.getLogger(name)
+
+    def parse(self, **kwargs):
+        logger = self._get_logger()
+        logger.debug('kwargs:\n%s', pformat(kwargs, indent=4))
         places = []
         for k, v in kwargs.items():
-            if k == 'districts':
-                continue
             places.append(getattr(self, '_parse_{}'.format(k))(**kwargs))
         return places
 
     def _parse_cnumber(self, **kwargs):
         pass
 
+    def _parse_commune(self, **kwargs):
+        commune_name = kwargs['commune']
+        logger = self._get_logger()
+        if not self._present('commune', commune_name):
+            return
+        try:
+            commune = self.communes[commune_name]
+        except KeyError:
+            pass
+
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
-        if country_name == '':
-            logger_name = ':'.join((
-                self.__class__.__name__,
-                inspect.currentframe().f_code.co_name))
-            logger = logging.getLogger(logger_name)
-            logger.warning(
-                'IGNORED: No country for Campā Inscription Number {}'
-                ''.format(kwargs['cnumber']))
+        logger = self._get_logger()
+        if not self._present('country', country_name):
             return
         try:
             country = self.cache[country_name]
         except KeyError:
             country = pycountry.countries.lookup(country_name)
-            logger_name = ':'.join((
-                self.__class__.__name__,
-                inspect.currentframe().f_code.co_name,
-                '\nCountry'))
-            logger = logging.getLogger(logger_name)
-            logger.debug('\n' + pformat(country.__dict__['_fields'], indent=4))
+            logger.debug(
+                'pycountry:country:\n%s', pformat(country.__dict__['_fields'], indent=4))
         p = CampaPlace(
             pid=country.alpha_2, 
             types=['country', 'ADM1'],
             project_name=country_name,
             **country.__dict__['_fields'])
-        logger_name = ':'.join((
-            self.__class__.__name__,
-            inspect.currentframe().f_code.co_name,
-            '\n{}'.format(p.__class__.__name__)))
-        logger = logging.getLogger(logger_name)
-        logger.debug('\n' + pformat(p.__dict__, indent=4))
+        logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
 
     def _parse_district(self, **kwargs):
-        logger_name = ':'.join((
-            self.__class__.__name__,
-            inspect.currentframe().f_code.co_name))
-        logger = logging.getLogger(logger_name)
         district_name = kwargs['district']
-        if district_name == '':
-            logger.warning(
-                'IGNORED: No district for Campā Inscription Number {}'
-                ''.format(kwargs['cnumber']))
+        logger = self._get_logger()
+        if not self._present('district', district_name):
             return
         district = None
         try:
@@ -369,6 +357,9 @@ class PlaceParser(object):
                 self.districts[district_name] = wikidata
                 self._save_districts()
                 district = wikidata
+        else:
+            logger.debug('using stored wikidata district information')
+        logger.debug('wikidata:\n%s', pformat(district, indent=4))
         district_slug = '-'.join(
             re.sub(r'[()-_]+', '', norm(district_name).lower()).split())
         if district is not None:
@@ -378,45 +369,33 @@ class PlaceParser(object):
                 project_name=district_name,
                 **district
             )
-        logger_name = ':'.join((
-            self.__class__.__name__,
-            inspect.currentframe().f_code.co_name,
-            '\n{}'.format(p.__class__.__name__)))
-        logger = logging.getLogger(logger_name)
-        logger.debug('\n' + pformat(p.__dict__, indent=4))
+        logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
             
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']
-        if province_name == '':
-            logger_name = ':'.join((
-                self.__class__.__name__,
-                inspect.currentframe().f_code.co_name))
-            logger = logging.getLogger(logger_name)
-            logger.warning(
-                'IGNORED: No province for Campā Inscription Number {}'
-                ''.format(kwargs['cnumber']))
+        logger = self._get_logger()
+        if not self._present('province', province_name):
             return
         try:
             province = self.cache[province_name]
         except KeyError:
             province = pycountry.subdivisions.lookup(province_name)
-            logger_name = ':'.join((
-                self.__class__.__name__,
-                inspect.currentframe().f_code.co_name,
-                '\nProvince'))
-            logger = logging.getLogger(logger_name)
-            logger.debug('\n' + pformat(province.__dict__['_fields'], indent=4))
+            logger.debug(
+                'pycountry:subdivision:\n%s', 
+                pformat(province.__dict__['_fields'], indent=4))
         p = CampaPlace(
             pid=province.code,
             types=['province', 'tỉnh', 'ADM2'],
             project_name=province_name,
             **province.__dict__['_fields'])
-        logger_name = ':'.join((
-            self.__class__.__name__,
-            inspect.currentframe().f_code.co_name,
-            '\n{}'.format(p.__class__.__name__)))
-        logger = logging.getLogger(logger_name)
-        logger.debug('\n' + pformat(p.__dict__, indent=4))
+        logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+
+    def _present(self, field_name, value):
+        if value == '':
+            logger = self._get_logger()
+            logger.warning('IGNORED: %s (%s)', (field_name, 'empty string'))
+            return False
+        return value
 
     def _save_districts(self):
         districts = Path(self.districts_path)
@@ -425,23 +404,25 @@ class PlaceParser(object):
         with districts.open('w', encoding='utf-8') as fp:
             json.dump(self.districts, fp, indent=4, ensure_ascii=False)
         del fp
-        
+
 
 def main(**kwargs):
     """
     main function
     """
-    logger = logging.getLogger(sys._getframe().f_code.co_name)
+    global logger
+    logging.basicConfig(format='%(levelname)s:%(message)s')
+    logger = logging.getLogger(__package__)
     data = get_csv(kwargs['infile'])
-    logger.info(data['fieldnames'])
-    logger.info('Rows in file: {}'.format(len(data['content'])))
+    logger.debug('CSV fieldnames: %s', data['fieldnames'])
+    logger.info('Rows in CSV file: %s', len(data['content']))
     g = Gazetteer()
     districts = kwargs['districts']
     if districts == 'districts.json':
         dpath = Path(__file__).parent.parent / districts
     else:
         dpath = Path(districts).expanduser().resolve()
-
+    logger.info('Path to districts file: %s', str(dpath))
     p = PlaceParser(dpath)
     for row in data['content']:
         # country -> province -> district -> commune -> village -> position
