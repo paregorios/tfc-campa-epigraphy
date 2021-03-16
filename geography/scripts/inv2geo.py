@@ -29,7 +29,8 @@ OPTIONAL_ARGUMENTS = [
         False],
     ['-w', '--veryverbose', False,
         'very verbose output (logging level == DEBUG)', False],
-    ['-d', '--districts', 'districts.json', 'districts info', False]
+    ['-d', '--districts', 'districts.json', 'districts info', False],
+    ['-c', '--communes', 'communes.json', 'communes info', False]
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
@@ -282,20 +283,24 @@ class Gazetteer(object):
 
 class PlaceParser(object):
 
-    def __init__(self, districts):
+    def __init__(self, districts, communes):
         self.cache = {}
         self.wd_client = wdClient()
         self.districts_path = str(districts)
+        self.communes_path = str(communes)
+        logger = self._get_logger()
         with districts.open('r', encoding='utf-8') as f:
             self.districts = json.load(f)
         del f
-        logger_name = ':'.join((
-            self.__class__.__name__,
-            inspect.currentframe().f_code.co_name))
-        logger = logging.getLogger(logger_name)
         logger.debug(
             'read {} districts from {}'
             ''.format(len(self.districts), districts))
+        with communes.open('r', encoding='utf-8') as f:
+            self.communes = json.load(f)
+        del f
+        logger.debug(
+            'read {} communes from {}'
+            ''.format(len(self.communes), communes))
 
     def _get_logger(self):
         name = ':'.join((
@@ -423,7 +428,12 @@ def main(**kwargs):
     else:
         dpath = Path(districts).expanduser().resolve()
     logger.info('Path to districts file: %s', str(dpath))
-    p = PlaceParser(dpath)
+    communes = kwargs['communes']
+    if communes == 'communes.json':
+        cpath = Path(__file__).parent.parent / communes
+    else:
+        cpath = Path(communes).expanduser().resolve()
+    p = PlaceParser(dpath, cpath)
     for row in data['content']:
         # country -> province -> district -> commune -> village -> position
         clean_data = {
