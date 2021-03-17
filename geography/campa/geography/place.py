@@ -58,6 +58,9 @@ class CampaPlace(SelfLogger):
     def set_description(self, value):
         if value in ['city']:
             self.set_type(value)
+        elif value.startswith('capital of '):
+            self.set_type('city')
+            self.description = value
         else:
             raise NotImplementedError(
                 'description: {}'.format(value))
