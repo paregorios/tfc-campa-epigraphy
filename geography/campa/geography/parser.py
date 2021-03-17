@@ -250,7 +250,7 @@ class PlaceParser(SelfLogger):
     def _present(self, field_name, value):
         if value == '':
             logger = self._get_logger()
-            logger.info('IGNORED: %s (%s)', field_name, 'empty string')
+            logger.debug('IGNORED: %s (%s)', field_name, 'empty string')
             return False
         return value
 
