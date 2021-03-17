@@ -87,7 +87,10 @@ class PlaceParser(SelfLogger):
             elif t == 'village':
                 types.append('PPA')
         if pid == 'slug':
-            name = kwargs['name']
+            try:
+                name = kwargs['project_name']
+            except KeyError:
+                name = kwargs['name']
             slug = '-'.join(
                 re.sub(r'[()-_]+', '', norm(name).lower()).split())
             p = CampaPlace(pid=slug, types=types, gazetteer=self.gazetteer, **kwargs)
@@ -189,6 +192,7 @@ class PlaceParser(SelfLogger):
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']
         logger = self._get_logger()
+        province = None
         if not self._present('province', province_name):
             return
         try:
@@ -201,11 +205,24 @@ class PlaceParser(SelfLogger):
                 self.cache[province_name] = province
         else:
             logger.debug('using stored pycountry province information')
-        p = CampaPlace(
-            pid=province.code,
-            types=['province', 'tỉnh', 'ADM2'],
-            project_name=province_name,
-            **province.__dict__['_fields'])
+        if province is None:
+            province = kwargs
+        else:
+            province = province.__dict__['_fields']
+        try:
+            province['name']
+        except KeyError:
+            province['name'] = province_name
+        else:
+            province['project_name'] = province_name
+        p = self._make_place(pid='slug', ptype='province', **province)
+
+        # p = CampaPlace(
+        #     pid=province.code,
+        #     types=['province', 'tỉnh', 'ADM2'],
+        #     project_name=province_name,
+        #     **province.__dict__['_fields'])
+
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
