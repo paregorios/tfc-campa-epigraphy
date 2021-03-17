@@ -4,7 +4,7 @@
 Campa Place type
 """
 
-from campa.place.logger import SelfLogger
+from campa.geography.logger import SelfLogger
 import re
 
 
