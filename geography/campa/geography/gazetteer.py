@@ -18,6 +18,15 @@ class Gazetteer(SelfLogger):
             'names2pids': PlaceIndexByName()
         }
 
+    def dump(self):
+        for pid, place in self.places.items():
+            msg = [pid]
+            for k, v in place.__dict__.items():
+                if k in ['gazetteer', 'pid']:
+                    continue
+                msg.append('\t{}: {}'.format(k, v))
+            print('\n'.join(msg))
+
     def set_place(self, place, overwrite=False):
         """Add a place to the gazetteer"""
         logger = self._get_logger()
