@@ -49,7 +49,6 @@ class PlaceParser(SelfLogger):
     def parse(self, **kwargs):
         logger = self._get_logger()
         logger.debug('kwargs:\n%s', pformat(kwargs, indent=4))
-        places = []
         keys = ['country', 'province', 'district', 'commune', 'village', 'position']
         for k in keys:
             v = kwargs[k]
@@ -171,15 +170,15 @@ class PlaceParser(SelfLogger):
                 self._save_districts()
         else:
             logger.debug('using stored wikidata district information')
-        district_slug = '-'.join(
-            re.sub(r'[()-_]+', '', norm(district_name).lower()).split())
-        if district is not None:
-            p = CampaPlace(
-                pid=district_slug,
-                types=['district', 'ADM3'],
-                project_name=district_name,
-                **district
-            )
+        if district is None:
+            district = kwargs
+        try:
+            district['name']
+        except KeyError:
+            district['name'] = district_name
+        else:
+            district['project_name'] = district_name
+        p = self._make_place(pid='slug', ptype='district', **district)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
@@ -216,13 +215,6 @@ class PlaceParser(SelfLogger):
         else:
             province['project_name'] = province_name
         p = self._make_place(pid='slug', ptype='province', **province)
-
-        # p = CampaPlace(
-        #     pid=province.code,
-        #     types=['province', 'tỉnh', 'ADM2'],
-        #     project_name=province_name,
-        #     **province.__dict__['_fields'])
-
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
