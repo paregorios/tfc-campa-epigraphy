@@ -37,13 +37,20 @@ class Gazetteer(SelfLogger):
 
     def lookup(self, term):
         """Lookup term using pids and names"""
+        logger = self._get_logger()
+        hit = None
         try:
             hit = self.places[term]
         except KeyError:
-            try:
-                hit = self.places[self.catalog['names2pids'].lookup(term)]
-            except KeyError:
-                hit = None
+            pids = self.catalog['names2pids'].lookup(term)
+            if len(pids) > 1:
+                raise NotImplementedError(pids)
+            elif len(pids) == 1:
+                try:
+                    hit = self.places[pids[0]]
+                except KeyError:
+                    pass
+            
         if hit is None:
             raise LookupError('Could not find {}'.format(term))
         else:

@@ -20,7 +20,7 @@ from wikidata_suggest import suggest
 
 class PlaceParser(SelfLogger):
 
-    def __init__(self, districts, communes, villages):
+    def __init__(self, districts, communes, villages, gazetteer):
         self.cache = {}
         self.districts_path = str(districts)
         self.communes_path = str(communes)
@@ -44,6 +44,7 @@ class PlaceParser(SelfLogger):
         logger.debug(
             'read {} villages from {}'
             ''.format(len(self.villages), villages))
+        self.gazetteer = gazetteer
 
     def parse(self, **kwargs):
         logger = self._get_logger()
@@ -64,9 +65,8 @@ class PlaceParser(SelfLogger):
                     msg += ' (C{})'.format(kwargs['cnumber'])
                 logger.warning(msg)
                 place = self._make_place(name=v, ptype=k)
-            else:
-                places.append(place)
-        return [p for p in places if p is not None]
+            if place is not None:
+                self.gazetteer.set_place(place)
 
     def _make_place(self, pid='slug', **kwargs):
         try:
@@ -90,9 +90,9 @@ class PlaceParser(SelfLogger):
             name = kwargs['name']
             slug = '-'.join(
                 re.sub(r'[()-_]+', '', norm(name).lower()).split())
-            p = CampaPlace(pid=slug, types=types, **kwargs)
+            p = CampaPlace(pid=slug, types=types, gazetteer=self.gazetteer, **kwargs)
         else:
-            p = CampaPlace(pid=pid, types=types, **kwargs)
+            p = CampaPlace(pid=pid, types=types, gazetteer=self.gazetteer, **kwargs)
         return p
 
     def _parse_cnumber(self, **kwargs):
@@ -106,16 +106,12 @@ class PlaceParser(SelfLogger):
         try:
             commune = self.communes[commune_name]
         except KeyError:
-            print('Attempting to get additional information about "{}"'.format(commune_name))
-            wikidata = suggest(commune_name)
-            logger.debug(pformat(wikidata, indent=4))
-            if wikidata is not None:
-                self.communes[commune_name] = wikidata
+            commune = self._suggest_wikidata(commune_name, 'commune')
+            if commune is not None:
+                self.communes[commune_name] = commune
                 self._save_communes()
-                commune = wikidata
         else:
             logger.debug('using stored wikidata commune information')
-        logger.debug('wikidata:\n%s', pformat(commune, indent=4))
         commune_slug = '-'.join(
             re.sub(r'[()-_]+', '', norm(commune_name).lower()).split())
         if commune is not None:
@@ -131,6 +127,7 @@ class PlaceParser(SelfLogger):
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
         logger = self._get_logger()
+        lookup = None
         if not self._present('country', country_name):
             return
         try:
@@ -145,6 +142,8 @@ class PlaceParser(SelfLogger):
                 raise NotImplementedError(country_name)
             else:
                 self.cache[country_name] = country
+        else:
+            logger.debug('using stored pycountry country information')
         p = CampaPlace(
             pid=country.alpha_2, 
             types=['country', 'ADM1'],
@@ -163,15 +162,12 @@ class PlaceParser(SelfLogger):
         try:
             district = self.districts[district_name]
         except KeyError:
-            wikidata = suggest(district_name)
-            logger.debug(pformat(wikidata, indent=4))
-            if wikidata is not None:
-                self.districts[district_name] = wikidata
+            district = self._suggest_wikidata(district_name, 'district')
+            if district is not None:
+                self.districts[district_name] = district
                 self._save_districts()
-                district = wikidata
         else:
             logger.debug('using stored wikidata district information')
-        logger.debug('wikidata:\n%s', pformat(district, indent=4))
         district_slug = '-'.join(
             re.sub(r'[()-_]+', '', norm(district_name).lower()).split())
         if district is not None:
@@ -203,13 +199,14 @@ class PlaceParser(SelfLogger):
                 raise NotImplementedError(province_name)
             else:
                 self.cache[province_name] = province
+        else:
+            logger.debug('using stored pycountry province information')
         p = CampaPlace(
             pid=province.code,
             types=['province', 'tỉnh', 'ADM2'],
             project_name=province_name,
             **province.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
-        sys.exit()
         return p
 
     def _parse_village(self, **kwargs):
@@ -221,18 +218,12 @@ class PlaceParser(SelfLogger):
         try:
             village = self.districts[village_name]
         except KeyError:
-            print(
-                Fore.CYAN + Style.BRIGHT + 'WIKIDATA LOOKUP: "{}" ({})'
-                ''.format(village_name, 'village') + Style.RESET_ALL)
-            wikidata = suggest(village_name)
-            logger.debug(pformat(wikidata, indent=4))
-            if wikidata is not None:
-                self.villages[village_name] = wikidata
+            village = self._suggest_wikidata(village_name, 'village')
+            if village is not None:
+                self.villages[village_name] = village
                 self._save_villages()
-                village = wikidata
         else:
             logger.debug('using stored wikidata village information')
-        logger.debug('wikidata:\n%s', pformat(village, indent=4))
         village_slug = '-'.join(
             re.sub(r'[()-_]+', '', norm(village_name).lower()).split())
         if village is not None:
@@ -243,7 +234,7 @@ class PlaceParser(SelfLogger):
                 **village
             )
         else:
-            p = self._make_place(pid=village_slug, ptype='village', **kwargs)
+            p = self._make_place(name=village_name, pid='slug', ptype='village', **kwargs)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
@@ -286,12 +277,29 @@ class PlaceParser(SelfLogger):
             suggestion = pycountry.subdivisions.lookup(term)
         else:
             raise NotImplementedError(ptype, term)
-        if suggestion is None:
+        msg = (
+            '{}:\n{}'
+            ''.format(
+                ptype,
+                pformat(suggestion.__dict__['_fields'], indent=4)))
+        logger.debug(msg)
+        return suggestion
+
+    def _suggest_wikidata(self, term, ptype):
+        logger = self._get_logger()
+        print(
+            Fore.CYAN + Style.BRIGHT + 'WIKIDATA LOOKUP: "{}" ({})'
+            ''.format(term, ptype) + Style.RESET_ALL)
+        suggestion = suggest(term)
+        if suggestion is not None:
             msg = (
                 '{}:\n{}'
                 ''.format(
                     ptype,
                     pformat(suggestion.__dict__['_fields'], indent=4)))
             logger.debug(msg)
+        else:
+            logger.debug('No wikidata suggestion was accepted by the user')
         return suggestion
+
 
