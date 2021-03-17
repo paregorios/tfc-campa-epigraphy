@@ -103,6 +103,7 @@ class PlaceParser(SelfLogger):
     def _parse_commune(self, **kwargs):
         commune_name = kwargs['commune']
         logger = self._get_logger()
+        commune = None
         if not self._present('commune', commune_name):
             return
         try:
@@ -129,6 +130,7 @@ class PlaceParser(SelfLogger):
     def _parse_country(self, **kwargs):
         country_name = kwargs['country']
         logger = self._get_logger()
+        country = None
         lookup = None
         if not self._present('country', country_name):
             return
@@ -146,12 +148,17 @@ class PlaceParser(SelfLogger):
                 self.cache[country_name] = country
         else:
             logger.debug('using stored pycountry country information')
-        p = CampaPlace(
-            pid=country.alpha_2, 
-            types=['country', 'ADM1'],
-            project_name=country_name,
-            alternate_name=lookup,
-            **country.__dict__['_fields'])
+        if country is None:
+            country = kwargs
+        else:
+            country = country.__dict__['_fields']
+        try:
+            country['name']
+        except KeyError:
+            country['name'] = country_name
+        else:
+            country['project_name'] = country_name
+        p = self._make_place(pid='slug', ptype='country', **country)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
