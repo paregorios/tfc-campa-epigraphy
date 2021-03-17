@@ -224,17 +224,10 @@ class PlaceParser(SelfLogger):
                 self._save_villages()
         else:
             logger.debug('using stored wikidata village information')
-        village_slug = '-'.join(
-            re.sub(r'[()-_]+', '', norm(village_name).lower()).split())
-        if village is not None:
-            p = CampaPlace(
-                pid=village_slug,
-                types=['village', 'PPL'],
-                project_name=village_name,
-                **village
-            )
-        else:
-            p = self._make_place(name=village_name, pid='slug', ptype='village', **kwargs)
+        if village is None:
+            village = kwargs
+        p = self._make_place(
+            name=village_name, pid='slug', ptype='village', **village)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
