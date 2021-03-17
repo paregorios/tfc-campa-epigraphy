@@ -12,12 +12,14 @@ import logging
 class Gazetteer(SelfLogger):
 
     def __init__(self):
+        super().__init__()
         self.places = {}
         self.catalog = {
             'names2pids': PlaceIndexByName()
         }
 
     def set_place(self, place, overwrite=False):
+        """Add a place to the gazetteer"""
         try:
             self.places[place.pid]
         except KeyError:
@@ -29,11 +31,13 @@ class Gazetteer(SelfLogger):
                 )
                 self.places[place.pid] = place
             else:
-                raise NotImplementedError('place collision')
+                raise NotImplementedError(
+                    'place collision: pid={}'.format(place.pid))
             return
         self.catalog['names2pids'].add(place)
 
     def lookup(self, term):
+        """Lookup term using pids and names"""
         try:
             hit = self.places[term]
         except KeyError:
