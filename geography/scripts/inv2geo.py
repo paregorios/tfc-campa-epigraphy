@@ -5,8 +5,10 @@ Convert Campā inventory to geodata
 """
 
 from airtight.cli import configure_commandline
+from campa.geography.gazetteer import Gazetteer
+from campa.geography.norm import norm
+from campa.geography.parser import PlaceParser
 from encoded_csv import get_csv
-import json
 import logging
 from logging import debug, info, warning, error, fatal
 from pathlib import Path
@@ -34,12 +36,6 @@ POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
     ['infile', str, 'input CSV file']
 ]
-
-
-
-
-
-
 
 
 def main(**kwargs):
