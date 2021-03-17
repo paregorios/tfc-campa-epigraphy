@@ -114,15 +114,15 @@ class PlaceParser(SelfLogger):
                 self._save_communes()
         else:
             logger.debug('using stored wikidata commune information')
-        commune_slug = '-'.join(
-            re.sub(r'[()-_]+', '', norm(commune_name).lower()).split())
-        if commune is not None:
-            p = CampaPlace(
-                pid=commune_slug,
-                types=['commune', 'ADM4'],
-                project_name=commune_name,
-                **commune
-            )
+        if commune is None:
+            commune = kwargs
+        try:
+            commune['name']
+        except KeyError:
+            commune['name'] = commune_name
+        else:
+            commune['project_name'] = commune_name
+        p = self._make_place(pid='slug', ptype='commune', **commune)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 
