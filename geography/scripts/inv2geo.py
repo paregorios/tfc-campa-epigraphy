@@ -5,6 +5,7 @@ Convert Campā inventory to geodata
 """
 
 from airtight.cli import configure_commandline
+from colorama import Fore, Style
 from encoded_csv import get_csv
 import inspect
 import json
@@ -30,7 +31,8 @@ OPTIONAL_ARGUMENTS = [
     ['-w', '--veryverbose', False,
         'very verbose output (logging level == DEBUG)', False],
     ['-d', '--districts', 'districts.json', 'districts info', False],
-    ['-c', '--communes', 'communes.json', 'communes info', False]
+    ['-c', '--communes', 'communes.json', 'communes info', False],
+    ['-t', '--villages', 'villages.json', 'villages info', False]
 ]
 POSITIONAL_ARGUMENTS = [
     # each row is a list with 3 elements: name, type, help
@@ -112,6 +114,13 @@ class CampaPlace(object):
 
     def set_alternate_name(self, value):
         self.set_name(value)
+
+    def set_cnumber(self, value):
+        try:
+            self.cnumbers
+        except AttributeError:
+            self.cnumbers = []
+        self.cnumbers.append(value)
         
     def set_code(self, value):
         self._set_identifier('ISO 3166-2', value)
@@ -194,6 +203,9 @@ class CampaPlace(object):
     def set_project_name(self, value):
         self.set_name(value)
 
+    def set_ptype(self, value):
+        self.set_type(value)
+
     def set_repository(self, value):
         pass
 
@@ -264,10 +276,7 @@ class Gazetteer(object):
                 )
                 self.places[place.pid] = place
             else:
-                logger.info(
-                    'Place {} already exists; not overwriting.'
-                    ''.format(place.pid)
-                )
+                raise NotImplementedError('place collision')
             return
         self.catalog['names2pids'].add(place)
 
@@ -287,11 +296,12 @@ class Gazetteer(object):
 
 class PlaceParser(object):
 
-    def __init__(self, districts, communes):
+    def __init__(self, districts, communes, villages):
         self.cache = {}
         self.wd_client = wdClient()
         self.districts_path = str(districts)
         self.communes_path = str(communes)
+        self.villages_path = str(villages)
         logger = self._get_logger()
         with districts.open('r', encoding='utf-8') as f:
             self.districts = json.load(f)
@@ -305,6 +315,12 @@ class PlaceParser(object):
         logger.debug(
             'read {} communes from {}'
             ''.format(len(self.communes), communes))
+        with villages.open('r', encoding='utf-8') as f:
+            self.villages = json.load(f)
+        del f
+        logger.debug(
+            'read {} villages from {}'
+            ''.format(len(self.villages), villages))
 
     def _get_logger(self):
         name = ':'.join((
@@ -316,7 +332,9 @@ class PlaceParser(object):
         logger = self._get_logger()
         logger.debug('kwargs:\n%s', pformat(kwargs, indent=4))
         places = []
-        for k, v in kwargs.items():
+        keys = ['country', 'province', 'district', 'commune', 'village', 'position']
+        for k in keys:
+            v = kwargs[k]
             try:
                 place = getattr(self, '_parse_{}'.format(k))(**kwargs)
             except LookupError:
@@ -327,10 +345,38 @@ class PlaceParser(object):
                     msg += ' in {}'.format(kwargs['country'])
                 if k != 'cnumber':
                     msg += ' (C{})'.format(kwargs['cnumber'])
-                logger.critical(msg)
+                logger.warning(msg)
+                place = self._make_place(name=v, ptype=k)
             else:
                 places.append(place)
         return [p for p in places if p is not None]
+
+    def _make_place(self, pid='slug', **kwargs):
+        try:
+            kwargs['ptype']
+        except KeyError:
+            types = []
+        else:
+            t = kwargs['ptype']
+            types = [t]
+            if t == 'country':
+                types.append('ADM1')
+            elif t == 'province':
+                types.append('ADM2')
+            elif t == 'district':
+                types.append('ADM3')
+            elif t == 'commune':
+                types.append('ADM4')
+            elif t == 'village':
+                types.append('PPA')
+        if pid == 'slug':
+            name = kwargs['name']
+            slug = '-'.join(
+                re.sub(r'[()-_]+', '', norm(name).lower()).split())
+            p = CampaPlace(pid=slug, types=types, **kwargs)
+        else:
+            p = CampaPlace(pid=pid, types=types, **kwargs)
+        return p
 
     def _parse_cnumber(self, **kwargs):
         pass
@@ -449,7 +495,36 @@ class PlaceParser(object):
         village_name = kwargs['village']
         if not self._present('village', village_name):
             return
-        raise NotImplementedError(inspect.currentframe().f_code.co_name)
+        logger = self._get_logger()
+        village = None
+        try:
+            village = self.districts[village_name]
+        except KeyError:
+            print(
+                Fore.CYAN + Style.BRIGHT + 'WIKIDATA LOOKUP: "{}" ({})'
+                ''.format(village_name, 'village') + Style.RESET_ALL)
+            wikidata = suggest(village_name)
+            logger.debug(pformat(wikidata, indent=4))
+            if wikidata is not None:
+                self.villages[village_name] = wikidata
+                self._save_villages()
+                village = wikidata
+        else:
+            logger.debug('using stored wikidata village information')
+        logger.debug('wikidata:\n%s', pformat(village, indent=4))
+        village_slug = '-'.join(
+            re.sub(r'[()-_]+', '', norm(village_name).lower()).split())
+        if village is not None:
+            p = CampaPlace(
+                pid=village_slug,
+                types=['village', 'PPL'],
+                project_name=village_name,
+                **village
+            )
+        else:
+            p = self._make_place(pid=village_slug, ptype='village', **kwargs)
+        logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        return p
 
     def _present(self, field_name, value):
         if value == '':
@@ -474,12 +549,19 @@ class PlaceParser(object):
             json.dump(self.districts, fp, indent=4, ensure_ascii=False)
         del fp
 
+    def _save_villages(self):
+        villages = Path(self.villages_path)
+        villages.rename(self.villages_path + '.bak')
+        villages = Path(self.villages_path)
+        with villages.open('w', encoding='utf-8') as fp:
+            json.dump(self.villages, fp, indent=4, ensure_ascii=False)
+        del fp
+
 
 def main(**kwargs):
     """
     main function
     """
-    global logger
     logging.basicConfig(format='%(levelname)s:%(message)s')
     logger = logging.getLogger(__package__)
     data = get_csv(kwargs['infile'])
@@ -497,7 +579,14 @@ def main(**kwargs):
         cpath = Path(__file__).parent.parent / communes
     else:
         cpath = Path(communes).expanduser().resolve()
-    p = PlaceParser(dpath, cpath)
+    logger.info('Path to communes file: %s', str(dpath))
+    villages = kwargs['villages']
+    if villages == 'villages.json':
+        vpath = Path(__file__).parent.parent / villages
+    else:
+        vpath = Path(villages).expanduser().resolve()
+    logger.info('Path to villages file: %s', str(vpath))
+    p = PlaceParser(dpath, cpath, vpath)
     for row in data['content']:
         # country -> province -> district -> commune -> village -> position
         clean_data = {
