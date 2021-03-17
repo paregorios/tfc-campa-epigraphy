@@ -232,7 +232,7 @@ class PlaceParser(SelfLogger):
         logger = self._get_logger()
         village = None
         try:
-            village = self.districts[village_name]
+            village = self.villages[village_name]
         except KeyError:
             village = self._suggest_wikidata(village_name, 'village')
             if village is not None:
