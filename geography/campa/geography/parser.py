@@ -14,6 +14,7 @@ from pathlib import Path
 from pprint import pformat
 import pycountry
 import re
+import sys
 from wikidata_suggest import suggest
 
 
@@ -139,9 +140,8 @@ class PlaceParser(SelfLogger):
                 lookup = 'Cambodia'
             else:
                 lookup = country_name
-            country = pycountry.countries.lookup(lookup)
-            logger.debug(
-                'pycountry:country:\n%s', pformat(country.__dict__['_fields'], indent=4))
+            country = self._suggest_pycountry(lookup, 'country')
+            self.cache[country_name] = country
         p = CampaPlace(
             pid=country.alpha_2, 
             types=['country', 'ADM1'],
@@ -149,6 +149,7 @@ class PlaceParser(SelfLogger):
             alternate_name=lookup,
             **country.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        sys.exit()
         return p
 
     def _parse_district(self, **kwargs):
@@ -272,3 +273,18 @@ class PlaceParser(SelfLogger):
         with villages.open('w', encoding='utf-8') as fp:
             json.dump(self.villages, fp, indent=4, ensure_ascii=False)
         del fp
+
+    def _suggest_pycountry(self, term, ptype):
+        logger = self._get_logger()
+        if ptype == 'country':
+            suggestion = pycountry.countries.lookup(term)
+        else:
+            raise NotImplementedError(ptype, term)
+        msg = (
+            '{}:\n{}'
+            ''.format(
+                ptype,
+                pformat(suggestion.__dict__['_fields'], indent=4)))
+        logger.debug(msg)
+        return suggestion
+
