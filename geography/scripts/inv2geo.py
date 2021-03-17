@@ -110,6 +110,9 @@ class CampaPlace(object):
     def set_alpha_3(self, value):
         self._set_identifier('ISO 3166-1', 'alpha-3', value)
 
+    def set_alternate_name(self, value):
+        self.set_name(value)
+        
     def set_code(self, value):
         self._set_identifier('ISO 3166-2', value)
 
@@ -358,13 +361,18 @@ class PlaceParser(object):
         try:
             country = self.cache[country_name]
         except KeyError:
-            country = pycountry.countries.lookup(country_name)
+            if country_name == 'Cambodge':
+                lookup = 'Cambodia'
+            else:
+                lookup = country_name
+            country = pycountry.countries.lookup(lookup)
             logger.debug(
                 'pycountry:country:\n%s', pformat(country.__dict__['_fields'], indent=4))
         p = CampaPlace(
             pid=country.alpha_2, 
             types=['country', 'ADM1'],
             project_name=country_name,
+            alternate_name=lookup,
             **country.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
