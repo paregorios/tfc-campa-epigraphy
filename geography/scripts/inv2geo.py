@@ -125,6 +125,8 @@ class CampaPlace(object):
     def set_code(self, value):
         self._set_identifier('ISO 3166-2', value)
 
+    def set_country(self, value):
+        
     def set_id(self, value):
         m = re.match(r'^Q\d+$', value)
         if m is not None:
@@ -256,44 +258,6 @@ class CampaPlace(object):
         self.set_uris([value])
         
 
-class Gazetteer(object):
-
-    def __init__(self):
-        self.places = {}
-        self.catalog = {
-            'names2pids': PlaceIndexByName()
-        }
-
-    def set_place(self, place, overwrite=False):
-        try:
-            self.places[place.pid]
-        except KeyError:
-            self.places[place.pid] = place
-        else:
-            if overwrite:
-                logger.warning(
-                    'Overwriting {}'.format(place.pid)
-                )
-                self.places[place.pid] = place
-            else:
-                raise NotImplementedError('place collision')
-            return
-        self.catalog['names2pids'].add(place)
-
-    def lookup(self, term):
-        try:
-            hit = self.places[term]
-        except KeyError:
-            try:
-                hit = self.places[self.catalog['names2pids'].lookup(term)]
-            except KeyError:
-                hit = None
-        if hit is None:
-            raise LookupError('Could not find {}'.format(term))
-        else:
-            return hit
-
-
 class PlaceParser(object):
 
     def __init__(self, districts, communes, villages):
@@ -321,12 +285,6 @@ class PlaceParser(object):
         logger.debug(
             'read {} villages from {}'
             ''.format(len(self.villages), villages))
-
-    def _get_logger(self):
-        name = ':'.join((
-            self.__class__.__name__,
-            sys._getframe().f_back.f_code.co_name))
-        return logging.getLogger(name)
 
     def parse(self, **kwargs):
         logger = self._get_logger()
