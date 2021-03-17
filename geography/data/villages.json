@@ -1,1 +1,32 @@
-{}
+{
+    "Phan Rang": {
+        "id": "Q19013",
+        "title": "Q19013",
+        "pageid": 22108,
+        "repository": "wikidata",
+        "url": "//www.wikidata.org/wiki/Q19013",
+        "concepturi": "http://www.wikidata.org/entity/Q19013",
+        "label": "Phan Rang–Tháp Chàm",
+        "description": "capital of Ninh Thuận province, Vietnam",
+        "match": {
+            "type": "label",
+            "language": "en",
+            "text": "Phan Rang–Tháp Chàm"
+        }
+    },
+    "Phanrang": {
+        "id": "Q19013",
+        "title": "Q19013",
+        "pageid": 22108,
+        "repository": "wikidata",
+        "url": "//www.wikidata.org/wiki/Q19013",
+        "concepturi": "http://www.wikidata.org/entity/Q19013",
+        "label": "Phan Rang–Tháp Chàm",
+        "description": "capital of Ninh Thuận province, Vietnam",
+        "match": {
+            "type": "label",
+            "language": "en",
+            "text": "Phan Rang–Tháp Chàm"
+        }
+    }
+}
