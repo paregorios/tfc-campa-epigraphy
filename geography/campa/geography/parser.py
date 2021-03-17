@@ -141,7 +141,10 @@ class PlaceParser(SelfLogger):
             else:
                 lookup = country_name
             country = self._suggest_pycountry(lookup, 'country')
-            self.cache[country_name] = country
+            if country is None:
+                raise NotImplementedError(country_name)
+            else:
+                self.cache[country_name] = country
         p = CampaPlace(
             pid=country.alpha_2, 
             types=['country', 'ADM1'],
@@ -149,7 +152,6 @@ class PlaceParser(SelfLogger):
             alternate_name=lookup,
             **country.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
-        sys.exit()
         return p
 
     def _parse_district(self, **kwargs):
@@ -196,16 +198,18 @@ class PlaceParser(SelfLogger):
         try:
             province = self.cache[province_name]
         except KeyError:
-            province = pycountry.subdivisions.lookup(province_name)
-            logger.debug(
-                'pycountry:subdivision:\n%s', 
-                pformat(province.__dict__['_fields'], indent=4))
+            province = self._suggest_pycountry(province_name, 'province')
+            if province is None:
+                raise NotImplementedError(province_name)
+            else:
+                self.cache[province_name] = province
         p = CampaPlace(
             pid=province.code,
             types=['province', 'tỉnh', 'ADM2'],
             project_name=province_name,
             **province.__dict__['_fields'])
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
+        sys.exit()
         return p
 
     def _parse_village(self, **kwargs):
@@ -278,13 +282,16 @@ class PlaceParser(SelfLogger):
         logger = self._get_logger()
         if ptype == 'country':
             suggestion = pycountry.countries.lookup(term)
+        elif ptype == 'province':
+            suggestion = pycountry.subdivisions.lookup(term)
         else:
             raise NotImplementedError(ptype, term)
-        msg = (
-            '{}:\n{}'
-            ''.format(
-                ptype,
-                pformat(suggestion.__dict__['_fields'], indent=4)))
-        logger.debug(msg)
+        if suggestion is None:
+            msg = (
+                '{}:\n{}'
+                ''.format(
+                    ptype,
+                    pformat(suggestion.__dict__['_fields'], indent=4)))
+            logger.debug(msg)
         return suggestion
 
