@@ -50,19 +50,19 @@ def main(**kwargs):
     g = Gazetteer()
     districts = kwargs['districts']
     if districts == 'districts.json':
-        dpath = Path(__file__).parent.parent / districts
+        dpath = Path(__file__).parent.parent / 'data' / districts
     else:
         dpath = Path(districts).expanduser().resolve()
     logger.info('Path to districts file: %s', str(dpath))
     communes = kwargs['communes']
     if communes == 'communes.json':
-        cpath = Path(__file__).parent.parent / communes
+        cpath = Path(__file__).parent.parent / 'data' / communes
     else:
         cpath = Path(communes).expanduser().resolve()
     logger.info('Path to communes file: %s', str(dpath))
     villages = kwargs['villages']
     if villages == 'villages.json':
-        vpath = Path(__file__).parent.parent / villages
+        vpath = Path(__file__).parent.parent / 'data' / villages
     else:
         vpath = Path(villages).expanduser().resolve()
     logger.info('Path to villages file: %s', str(vpath))
