@@ -5,5 +5,8 @@
 *.xpr
 *.bak
 ~$*
-package_template_3.py
 
+# Python stuff
+package_template_3.py
+__pycache__
+*.egg-info
