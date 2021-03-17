@@ -305,7 +305,7 @@ class PlaceParser(SelfLogger):
                 '{}:\n{}'
                 ''.format(
                     ptype,
-                    pformat(suggestion.__dict__['_fields'], indent=4)))
+                    pformat(suggestion, indent=4)))
             logger.debug(msg)
         else:
             logger.debug('No wikidata suggestion was accepted by the user')
