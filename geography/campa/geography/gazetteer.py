@@ -4,9 +4,8 @@
 Gazetteer class for Campā parser
 """
 
-from geography.indexing import PlaceIndexByName
-from geography.logger import SelfLogger
-import logging
+from campa.geography.indexing import PlaceIndexByName
+from campa.geography.logger import SelfLogger
 
 
 class Gazetteer(SelfLogger):
