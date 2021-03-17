@@ -317,7 +317,19 @@ class PlaceParser(object):
         logger.debug('kwargs:\n%s', pformat(kwargs, indent=4))
         places = []
         for k, v in kwargs.items():
-            places.append(getattr(self, '_parse_{}'.format(k))(**kwargs))
+            try:
+                place = getattr(self, '_parse_{}'.format(k))(**kwargs)
+            except LookupError:
+                msg = (
+                    'LOOKUP FAILED for "{}" as a "{}"'
+                    ''.format(v, k))
+                if k != 'country':
+                    msg += ' in {}'.format(kwargs['country'])
+                if k != 'cnumber':
+                    msg += ' (C{})'.format(kwargs['cnumber'])
+                logger.critical(msg)
+            else:
+                places.append(place)
         return [p for p in places if p is not None]
 
     def _parse_cnumber(self, **kwargs):
@@ -437,12 +449,12 @@ class PlaceParser(object):
         village_name = kwargs['village']
         if not self._present('village', village_name):
             return
-        raise NotImplementedError(inspect.currentframe.f_code.co_name)
-        
+        raise NotImplementedError(inspect.currentframe().f_code.co_name)
+
     def _present(self, field_name, value):
         if value == '':
             logger = self._get_logger()
-            logger.warning('IGNORED: %s (%s)', field_name, 'empty string')
+            logger.info('IGNORED: %s (%s)', field_name, 'empty string')
             return False
         return value
 
