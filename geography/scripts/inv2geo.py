@@ -67,7 +67,7 @@ def main(**kwargs):
         vpath = Path(villages).expanduser().resolve()
     logger.info('Path to villages file: %s', str(vpath))
     p = PlaceParser(dpath, cpath, vpath, g)
-    for row in data['content']:
+    for i, row in enumerate(data['content']):
         # country -> province -> district -> commune -> village -> position
         clean_data = {
             'cnumber': norm(row['N° C.']),
@@ -79,7 +79,9 @@ def main(**kwargs):
             'position': norm(row['Position'])
         }
         p.parse(**clean_data)
-            
+        if i == 3:
+            g.dump()
+            sys.exit()
 
 if __name__ == "__main__":
     main(**configure_commandline(
