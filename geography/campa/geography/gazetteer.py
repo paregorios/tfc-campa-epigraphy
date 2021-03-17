@@ -6,6 +6,7 @@ Gazetteer class for Campā parser
 
 from campa.geography.indexing import PlaceIndexByName
 from campa.geography.logger import SelfLogger
+from pprint import pprint
 
 
 class Gazetteer(SelfLogger):
@@ -19,10 +20,17 @@ class Gazetteer(SelfLogger):
 
     def set_place(self, place, overwrite=False):
         """Add a place to the gazetteer"""
+        logger = self._get_logger()
         try:
-            self.places[place.pid]
+            prior = self.places[place.pid]
         except KeyError:
             self.places[place.pid] = place
+            msg = (
+                'Added new place entry to gazetteer:\n'
+                '\t{}: {} ({})'
+                ''.format(place.pid, ', '.join(place.names), '/'.join(place.types))
+            )
+            logger.info(msg)
         else:
             if overwrite:
                 logger.warning(
@@ -30,8 +38,17 @@ class Gazetteer(SelfLogger):
                 )
                 self.places[place.pid] = place
             else:
-                raise NotImplementedError(
-                    'place collision: pid={}'.format(place.pid))
+                if place == prior:
+                    raise RuntimeError('joy')
+                else:
+                    if dir(prior) != dir(prior):
+                        raise NotImplementedError('field name mismatch')
+                    for k, v in prior.__dict__.items():
+                        new_v = getattr(place, k)
+                        if v != new_v:
+                            raise NotImplementedError(
+                                '{}: {} vs. {}'.format(k, v, new_v))
+                    
             return
         self.catalog['names2pids'].add(place)
 
