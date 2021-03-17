@@ -5,11 +5,7 @@ Indexing classes
 """
 
 from campa.geography.logger import SelfLogger
-from textnorm import normalize_space, normalize_unicode
-
-
-def norm(raw):
-    return normalize_unicode(normalize_space(raw))
+from campa.geography.norm import norm
 
 
 class CatalogIndex(SelfLogger):
