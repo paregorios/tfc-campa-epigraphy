@@ -68,6 +68,7 @@ class PlaceParser(SelfLogger):
                 self.gazetteer.set_place(place)
 
     def _make_place(self, pid='slug', **kwargs):
+        slug = None
         try:
             kwargs['ptype']
         except KeyError:
@@ -85,13 +86,30 @@ class PlaceParser(SelfLogger):
                 types.append('ADM4')
             elif t == 'village':
                 types.append('PPA')
+        try:
+            kwargs['repository']
+        except KeyError:
+            pass
+        else:
+            if kwargs['repository'] == 'wikidata':
+                try:
+                    lookup = self.gazetteer.lookup(kwargs['id'])
+                except LookupError:
+                    pass
+                else:
+                    if kwargs['name'] not in lookup.names:
+                        lookup.set_name(kwargs['name'])
+                    return lookup
+                slug = kwargs['id']
+
         if pid == 'slug':
-            try:
-                name = kwargs['project_name']
-            except KeyError:
-                name = kwargs['name']
-            slug = '-'.join(
-                re.sub(r'[()-_]+', '', norm(name).lower()).split())
+            if slug is None:
+                try:
+                    name = kwargs['project_name']
+                except KeyError:
+                    name = kwargs['name']
+                slug = '-'.join(
+                    re.sub(r'[()-_]+', '', norm(name).lower()).split())
             p = CampaPlace(pid=slug, types=types, gazetteer=self.gazetteer, **kwargs)
         else:
             p = CampaPlace(pid=pid, types=types, gazetteer=self.gazetteer, **kwargs)

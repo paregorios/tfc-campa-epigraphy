@@ -5,19 +5,29 @@ Campa Place type
 """
 
 from campa.geography.logger import SelfLogger
+from pprint import pformat
 import re
 
 
 class CampaPlace(SelfLogger):
 
     def __init__(self, pid, gazetteer=None, **kwargs):
+        logger = self._get_logger()
         self.pid = pid
         if gazetteer is not None:
             self.gazetteer = gazetteer
         for k, v in kwargs.items():
             kfn = '_'.join(k.lower().split())
-            getattr(self, 'set_{}'.format(kfn))(v)
+            try:
+                getattr(self, 'set_{}'.format(kfn))(v)
+            except AttributeError:
+                logger.error(pformat(kwargs, indent=4))
+                raise
 
+    def set_aliases(self, value):
+        # wikidata alternate lookups
+        pass
+    
     def set_alpha_2(self, value):
         self._set_identifier('ISO 3166-1', 'alpha-2', value)
 

@@ -47,9 +47,7 @@ class Gazetteer(SelfLogger):
                 )
                 self.places[place.pid] = place
             else:
-                if place == prior:
-                    raise RuntimeError('joy')
-                else:
+                if place != prior:
                     if dir(prior) != dir(prior):
                         raise NotImplementedError('field name mismatch')
                     for k, v in prior.__dict__.items():
@@ -57,13 +55,11 @@ class Gazetteer(SelfLogger):
                         if v != new_v:
                             raise NotImplementedError(
                                 '{}: {} vs. {}'.format(k, v, new_v))
-                    
             return
         self.catalog['names2pids'].add(place)
 
     def lookup(self, term):
         """Lookup term using pids and names"""
-        logger = self._get_logger()
         hit = None
         try:
             hit = self.places[term]
@@ -76,10 +72,7 @@ class Gazetteer(SelfLogger):
                     hit = self.places[pids[0]]
                 except KeyError:
                     pass
-            
         if hit is None:
             raise LookupError('Could not find {}'.format(term))
         else:
             return hit
-
-
