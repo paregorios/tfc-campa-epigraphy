@@ -8,6 +8,7 @@ from campa.geography.place import CampaPlace
 from campa.geography.logger import SelfLogger
 from campa.geography.norm import norm
 from colorama import Fore, Style
+from copy import deepcopy
 import inspect
 import json
 from pathlib import Path
@@ -135,6 +136,15 @@ class PlaceParser(SelfLogger):
             logger.debug('using stored wikidata commune information')
         if commune is None:
             commune = kwargs
+        else:
+            commune = deepcopy(commune)
+            for k, v in kwargs.items():
+                if k not in ['country', 'province', 'district']:
+                    continue
+                try:
+                    commune[k]
+                except KeyError:
+                    commune[k] = v
         try:
             commune['name']
         except KeyError:
@@ -197,6 +207,15 @@ class PlaceParser(SelfLogger):
             logger.debug('using stored wikidata district information')
         if district is None:
             district = kwargs
+        else:
+            district = deepcopy(district)
+            for k, v in kwargs.items():
+                if k not in ['country', 'province']:
+                    continue
+                try:
+                    district[k]
+                except KeyError:
+                    district[k] = v
         try:
             district['name']
         except KeyError:
@@ -232,7 +251,14 @@ class PlaceParser(SelfLogger):
         if province is None:
             province = kwargs
         else:
-            province = province.__dict__['_fields']
+            province = deepcopy(province.__dict__['_fields'])
+            for k, v in kwargs.items():
+                if k not in ['country']:
+                    continue
+                try:
+                    province[k]
+                except KeyError:
+                    province[k] = v
         try:
             province['name']
         except KeyError:
@@ -259,9 +285,24 @@ class PlaceParser(SelfLogger):
         else:
             logger.debug('using stored wikidata village information')
         if village is None:
-            village = kwargs
-        p = self._make_place(
-            name=village_name, pid='slug', ptype='village', **village)
+            village = deepcopy(kwargs)
+            del village['village']
+        else:
+            village = deepcopy(village)
+            for k, v in kwargs.items():
+                if k not in ['country', 'province', 'district', 'commune']:
+                    continue
+                try:
+                    village[k]
+                except KeyError:
+                    village[k] = v
+        try:
+            village['name']
+        except KeyError:
+            village['name'] = village_name
+        else:
+            village['project_name'] = village_name
+        p = self._make_place(pid='slug', ptype='village', **village)
         logger.debug('CampaPlace:\n%s', pformat(p.__dict__, indent=4))
         return p
 

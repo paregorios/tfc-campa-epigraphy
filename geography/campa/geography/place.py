@@ -5,8 +5,9 @@ Campa Place type
 """
 
 from campa.geography.logger import SelfLogger
-from pprint import pformat
+from pprint import pformat, pprint
 import re
+import sys
 
 
 class CampaPlace(SelfLogger):
@@ -62,9 +63,8 @@ class CampaPlace(SelfLogger):
             self.country = self._set_with_gazetteer(value)
 
     def set_country_code(self, value):
-        if value is not None:
-            self.country_code = value
-
+        pass
+    
     def set_description(self, value):
         if value in ['city']:
             self.set_type(value)
