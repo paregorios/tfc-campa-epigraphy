@@ -230,7 +230,7 @@ class PlaceParser(SelfLogger):
         position_name = kwargs['position']
         if not self._present('position', position_name):
             return
-        raise NotImplementedError(inspect.currentframe.f_code.co_name)
+        raise NotImplementedError(inspect.currentframe().f_code.co_name)
 
     def _parse_province(self, **kwargs):
         province_name = kwargs['province']

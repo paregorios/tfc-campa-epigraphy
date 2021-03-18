@@ -79,7 +79,7 @@ def main(**kwargs):
             'position': norm(row['Position'])
         }
         p.parse(**clean_data)
-        if i == 1:
+        if i == 20:
             g.dump()
             sys.exit()
 
